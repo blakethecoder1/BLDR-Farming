@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>BLDR Farming UI</title>
+  <style>
+    html, body {
+      margin:0;
+      padding:0;
+      background: transparent !important;
+      font-family: Inter, system-ui, Arial;
+    }
+    /* Root UI container starts hidden */
+    #ui {
+      display:none;
+      position:fixed;
+      inset:0;
+      pointer-events:auto;
+    }
+    /* When hidden, don't intercept mouse/key events */
+    #ui[style*="display: none"] {
+      pointer-events:none;
+    }
+    .wrap {
+      display:grid;
+      place-items:center;
+      width:100%;
+      height:100%;
+    }
+    .panel {
+      width:520px;
+      background:#181a1f;
+      color:#e6e6e6;
+      border-radius:16px;
+      padding:24px;
+      box-shadow:0 10px 40px rgba(0,0,0,.45);
+    }
+    .title {
+      font-size:24px;
+      font-weight:700;
+      margin-bottom:4px;
+    }
+    .sub {
+      font-size:13px;
+      opacity:.7;
+      margin-bottom:18px;
+    }
+    .row {
+      display:flex;
+      gap:12px;
+      justify-content:center;
+    }
+    .btn {
+      padding:12px 18px;
+      border-radius:10px;
+      font-weight:700;
+      cursor:pointer;
+      user-select:none;
+    }
+    /* Colour accents */
+    .plant { background:#34c759; color:#0a2b12; }
+    .water { background:#ffca28; color:#3a2a00; }
+    .harv  { background:#2196f3; color:#031e36; }
+    /* Disabled state */
+    .disabled {
+      opacity:0.5;
+      pointer-events:none;
+    }
+  </style>
+</head>
+<body>
+  <div id="ui">
+    <div class="wrap">
+      <div class="panel">
+        <div class="title">Farm Plot</div>
+        <div class="sub" id="status">Status: Unknown</div>
+        <div class="row">
+          <div class="btn plant" id="btn-plant">Plant</div>
+          <div class="btn water" id="btn-water">Water</div>
+          <div class="btn harv"  id="btn-harvest">Harvest</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const ui = $("ui");
+
+    function hideUI(){ ui.style.display = "none"; }
+    function showUI(){ ui.style.display = "block"; }
+
+    // Hide UI on load
+    document.addEventListener('DOMContentLoaded', hideUI);
+
+    // Receive messages from Lua
+    window.addEventListener('message', (e) => {
+      const d = e.data || {};
+      if (d.action === 'open') {
+        // payload contains {state, progress, water, farmId, label}
+        const statusEl = $("status");
+        statusEl.textContent = d.payload && d.payload.state ? `Status: ${d.payload.state}` : 'Status: Unknown';
+        // Toggle disabled states based on plot state
+        const plantBtn = $("btn-plant");
+        const waterBtn = $("btn-water");
+        const harvBtn  = $("btn-harvest");
+        plantBtn.classList.remove('disabled');
+        waterBtn.classList.remove('disabled');
+        harvBtn.classList.remove('disabled');
+        switch(d.payload && d.payload.state) {
+          case 'empty':
+            // only plant is available
+            waterBtn.classList.add('disabled');
+            harvBtn.classList.add('disabled');
+            break;
+          case 'growing':
+            // show water if water < 100
+            plantBtn.classList.add('disabled');
+            harvBtn.classList.add('disabled');
+            if (!(d.payload.water < 100)) {
+              waterBtn.classList.add('disabled');
+            }
+            break;
+          case 'ready':
+            // only harvest available
+            plantBtn.classList.add('disabled');
+            waterBtn.classList.add('disabled');
+            break;
+          case 'dead':
+            // only plant available
+            waterBtn.classList.add('disabled');
+            harvBtn.classList.add('disabled');
+            break;
+        }
+        // store farmId for use in fetch
+        window.currentFarmId = d.payload && d.payload.farmId;
+        showUI();
+      }
+      if (d.action === 'close' || d.action === 'hide') {
+        hideUI();
+        window.currentFarmId = null;
+      }
+    });
+
+    // Close on ESC
+    document.addEventListener('keydown', (ev) => {
+      if (ev.key === 'Escape') {
+        fetch(`https://${GetParentResourceName()}/close`, { method:'POST' });
+      }
+    });
+
+    // Button click handlers
+    $("btn-plant").onclick   = () => {
+      if (!$("btn-plant").classList.contains('disabled')) {
+        fetch(`https://${GetParentResourceName()}/plant`, {
+          method:'POST', headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({ farmId: window.currentFarmId })
+        });
+      }
+    };
+    $("btn-water").onclick   = () => {
+      if (!$("btn-water").classList.contains('disabled')) {
+        fetch(`https://${GetParentResourceName()}/water`, {
+          method:'POST', headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({ farmId: window.currentFarmId })
+        });
+      }
+    };
+    $("btn-harvest").onclick = () => {
+      if (!$("btn-harvest").classList.contains('disabled')) {
+        fetch(`https://${GetParentResourceName()}/harvest`, {
+          method:'POST', headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({ farmId: window.currentFarmId })
+        });
+      }
+    };
+  </script>
+</body>
+</html>
