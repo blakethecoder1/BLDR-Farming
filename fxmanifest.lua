@@ -13,6 +13,12 @@ name 'bldr_farming'
 description 'Simple farming system for BLDR'
 author 'blakethepet'
 
+dependencies {
+    'bldr_core',
+    'qb-core',
+    'qb-target'
+}
+
 shared_script 'config.lua'
 
 client_scripts {
@@ -35,7 +41,3 @@ server_scripts {
 --     'html/images/weed_seed.png',
 --     'html/images/weed_seed_large.png'
 -- }
-
-server_scripts {
-    'server/main.lua'
-}
