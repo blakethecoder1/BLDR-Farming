@@ -48,8 +48,299 @@ end
 
 local QBCore = exports['qb-core']:GetCoreObject()
 
+-- Detect which target system is available
+local TargetSystem = nil
+if GetResourceState('ox_target') == 'started' then
+    TargetSystem = 'ox_target'
+elseif GetResourceState('qb-target') == 'started' then
+    TargetSystem = 'qb-target'
+else
+    print("[bldr_farming] WARNING: No target system detected (ox_target or qb-target)")
+end
+
+-- Weed Facility Entry Zone
+CreateThread(function()
+    Wait(1000)
+    if Config.WeedFacilityEntry then
+        local coords = Config.WeedFacilityEntry.coords
+        
+        if TargetSystem == 'ox_target' then
+            exports.ox_target:addBoxZone({
+                coords = coords,
+                size = vec3(2, 2, 2),
+                rotation = 0,
+                debug = false,
+                options = {
+                    {
+                        name = 'weed_facility_enter',
+                        icon = Config.WeedFacilityEntry.icon,
+                        label = Config.WeedFacilityEntry.label,
+                        onSelect = function()
+                            TriggerEvent('bldr_farming:enterWeedFacility')
+                        end
+                    }
+                }
+            })
+        elseif TargetSystem == 'qb-target' then
+            exports['qb-target']:AddBoxZone('weed_facility_entry', coords, 2.0, 2.0, {
+                name = 'weed_facility_entry',
+                heading = 0,
+                debugPoly = false,
+                minZ = coords.z - 1,
+                maxZ = coords.z + 2
+            }, {
+                options = {
+                    {
+                        icon = Config.WeedFacilityEntry.icon,
+                        label = Config.WeedFacilityEntry.label,
+                        action = function()
+                            TriggerEvent('bldr_farming:enterWeedFacility')
+                        end
+                    }
+                },
+                distance = 2.5
+            })
+        end
+    end
+end)
+
+-- Weed Facility Exit Zone
+CreateThread(function()
+    Wait(1000)
+    if Config.WeedFacilityExit then
+        local coords = Config.WeedFacilityExit.coords
+        
+        if TargetSystem == 'ox_target' then
+            exports.ox_target:addBoxZone({
+                coords = coords,
+                size = vec3(2, 2, 2),
+                rotation = 0,
+                debug = false,
+                options = {
+                    {
+                        name = 'weed_facility_exit',
+                        icon = Config.WeedFacilityExit.icon,
+                        label = Config.WeedFacilityExit.label,
+                        onSelect = function()
+                            TriggerEvent('bldr_farming:exitWeedFacility')
+                        end
+                    }
+                }
+            })
+        elseif TargetSystem == 'qb-target' then
+            exports['qb-target']:AddBoxZone('weed_facility_exit', coords, 2.0, 2.0, {
+                name = 'weed_facility_exit',
+                heading = 0,
+                debugPoly = false,
+                minZ = coords.z - 1,
+                maxZ = coords.z + 2
+            }, {
+                options = {
+                    {
+                        icon = Config.WeedFacilityExit.icon,
+                        label = Config.WeedFacilityExit.label,
+                        action = function()
+                            TriggerEvent('bldr_farming:exitWeedFacility')
+                        end
+                    }
+                },
+                distance = 2.5
+            })
+        end
+    end
+end)
+
+-- Enter Weed Facility Event
+RegisterNetEvent('bldr_farming:enterWeedFacility', function()
+    local ped = PlayerPedId()
+    DoScreenFadeOut(500)
+    Wait(500)
+    SetEntityCoords(ped, Config.WeedFacilityEntry.teleportCoords.x, Config.WeedFacilityEntry.teleportCoords.y, Config.WeedFacilityEntry.teleportCoords.z, false, false, false, true)
+    Wait(500)
+    DoScreenFadeIn(500)
+    QBCore.Functions.Notify('You entered the weed facility', 'success')
+end)
+
+-- Exit Weed Facility Event
+RegisterNetEvent('bldr_farming:exitWeedFacility', function()
+    local ped = PlayerPedId()
+    DoScreenFadeOut(500)
+    Wait(500)
+    SetEntityCoords(ped, Config.WeedFacilityExit.teleportCoords.x, Config.WeedFacilityExit.teleportCoords.y, Config.WeedFacilityExit.teleportCoords.z, false, false, false, true)
+    Wait(500)
+    DoScreenFadeIn(500)
+    QBCore.Functions.Notify('You exited the weed facility', 'success')
+end)
+
+-- Target system wrapper functions
+local function AddEntityTarget(entity, options)
+    if not TargetSystem then return end
+    
+    if TargetSystem == 'ox_target' then
+        local oxOptions = {}
+        for _, opt in ipairs(options.options or {}) do
+            table.insert(oxOptions, {
+                name = opt.label or 'interact',
+                icon = opt.icon or 'fas fa-hand',
+                label = type(opt.label) == 'function' and opt.label() or opt.label,
+                onSelect = function()
+                    TriggerEvent(opt.event, { farmId = opt.farmId })
+                end,
+                distance = options.distance or 2.5,
+                canInteract = opt.canInteract
+            })
+        end
+        exports.ox_target:addLocalEntity(entity, oxOptions)
+    elseif TargetSystem == 'qb-target' then
+        exports['qb-target']:AddTargetEntity(entity, options)
+    end
+end
+
+local function AddCircleZone(zoneName, coords, radius, zoneOptions, targetOptions)
+    if not TargetSystem then return end
+    
+    if TargetSystem == 'ox_target' then
+        local oxOptions = {}
+        for _, opt in ipairs(targetOptions.options or {}) do
+            table.insert(oxOptions, {
+                name = opt.label or 'interact',
+                icon = opt.icon or 'fas fa-hand',
+                label = opt.label,
+                onSelect = function()
+                    TriggerEvent(opt.event, { farmId = opt.farmId })
+                end,
+                distance = targetOptions.distance or 2.5,
+                canInteract = opt.canInteract
+            })
+        end
+        exports.ox_target:addSphereZone({
+            coords = coords,
+            radius = radius,
+            debug = zoneOptions.debugPoly or false,
+            options = oxOptions
+        })
+    elseif TargetSystem == 'qb-target' then
+        exports['qb-target']:AddCircleZone(zoneName, coords, radius, zoneOptions, targetOptions)
+    end
+end
+
+local function AddBoxZone(zoneName, coords, length, width, zoneOptions, targetOptions)
+    if not TargetSystem then return end
+    
+    if TargetSystem == 'ox_target' then
+        local oxOptions = {}
+        for _, opt in ipairs(targetOptions.options or {}) do
+            table.insert(oxOptions, {
+                name = opt.label or 'interact',
+                icon = opt.icon or 'fas fa-hand',
+                label = opt.label,
+                onSelect = function()
+                    TriggerEvent(opt.event, { farmId = opt.farmId })
+                end,
+                distance = targetOptions.distance or 2.5,
+                canInteract = opt.canInteract
+            })
+        end
+        exports.ox_target:addBoxZone({
+            coords = coords,
+            size = vec3(length, width, zoneOptions.maxZ - zoneOptions.minZ),
+            rotation = zoneOptions.heading or 0,
+            debug = zoneOptions.debugPoly or false,
+            options = oxOptions
+        })
+    elseif TargetSystem == 'qb-target' then
+        exports['qb-target']:AddBoxZone(zoneName, coords, length, width, zoneOptions, targetOptions)
+    end
+end
+
+local function RemoveTargetEntity(entity)
+    if not TargetSystem then return end
+    
+    if TargetSystem == 'ox_target' then
+        exports.ox_target:removeLocalEntity(entity)
+    elseif TargetSystem == 'qb-target' then
+        exports['qb-target']:RemoveTargetEntity(entity)
+    end
+end
+
+local function RemoveZone(zoneName)
+    if not TargetSystem then return end
+    
+    if TargetSystem == 'ox_target' then
+        exports.ox_target:removeZone(zoneName)
+    elseif TargetSystem == 'qb-target' then
+        exports['qb-target']:RemoveZone(zoneName)
+    end
+end
+
 -- Table to store spawned plant objects
 local plantObjects = {}
+
+-- Track active zones to prevent removal warnings
+local activeZones = {}
+
+-- Function to delete a plant object
+local function deletePlant(farmId)
+    if not plantObjects[farmId] then return end
+    
+    local plantData = plantObjects[farmId]
+    
+    -- Remove target interactions from entity
+    if plantData.object and DoesEntityExist(plantData.object) then
+        RemoveTargetEntity(plantData.object)
+        DeleteObject(plantData.object)
+    end
+    
+    -- Remove zone with safe check
+    local zoneName = 'farming_plant_' .. farmId
+    if TargetSystem == 'qb-target' then
+        -- qb-target will warn if zone doesn't exist, so we check first
+        pcall(function()
+            RemoveZone(zoneName)
+        end)
+    else
+        -- ox_target handles non-existent zones gracefully
+        RemoveZone(zoneName)
+    end
+    
+    -- Clear from table
+    plantObjects[farmId] = nil
+end
+
+-- Entry target for weed facility (setup after function definitions)
+CreateThread(function()
+    Wait(1000)
+    local entry = Config.WeedFacilityEntry
+    if entry and entry.coords then
+        AddCircleZone('weed_facility_entry', entry.coords, 1.5, {
+            name = 'weed_facility_entry',
+            useZ = true,
+            debugPoly = false
+        }, {
+            options = {
+                {
+                    type = 'client',
+                    event = 'bldr_farming:enterWeedFacility',
+                    icon = entry.icon or 'fas fa-door-open',
+                    label = entry.label or 'Enter Facility'
+                }
+            },
+            distance = 2.0
+        })
+    end
+end)
+
+RegisterNetEvent('bldr_farming:enterWeedFacility', function()
+    local entry = Config.WeedFacilityEntry
+    if entry and entry.teleportCoords then
+        DoScreenFadeOut(500)
+        Wait(600)
+        SetEntityCoords(PlayerPedId(), entry.teleportCoords.x, entry.teleportCoords.y, entry.teleportCoords.z, false, false, false, true)
+        Wait(400)
+        DoScreenFadeIn(500)
+        QBCore.Functions.Notify('You entered the weed facility.', 'success')
+    end
+end)
 
 -- Interaction cooldown system to prevent duplicates
 local lastInteractionTime = {}
@@ -325,27 +616,12 @@ local function spawnPlant(farmId, plantType, progress)
         local scale = minScale + ((progress or 0) / 100) * (maxScale - minScale)
         
         -- Force scaling to work - weed plants are too big otherwise
-        local scalingWorked = false
-        if SetEntityScale then
-            pcall(function()
+        pcall(function()
+            if SetEntityScale then
                 SetEntityScale(plant, scale, scale, scale)
-                scalingWorked = true
-                print(("[bldr_farming] Scaled %s to %f for progress %d%%"):format(model, scale, progress or 0))
-            end)
-        end
-        
-        if not scalingWorked and SetObjectScale then
-            pcall(function()
-                SetObjectScale(plant, scale)
-                scalingWorked = true
-                print(("[bldr_farming] Scaled %s to %f for progress %d%%"):format(model, scale, progress or 0))
-            end)
-        end
-        
-        -- If scaling completely fails, still keep the plant but warn
-        if not scalingWorked then
-            print("[bldr_farming] Warning: Scaling failed for " .. tostring(model) .. ", plant may appear oversized")
-        end
+            end
+        end)
+        -- Note: Scaling may silently fail for some prop models - this is normal
         
         -- Make it solid and detectable but freeze position (only if plant exists)
         if plant and DoesEntityExist(plant) then
@@ -362,7 +638,7 @@ local function spawnPlant(farmId, plantType, progress)
             
             -- Add harvest interaction if plant is mature enough (above 80% growth)
             if (progress or 0) >= 80 then
-                exports['qb-target']:AddTargetEntity(plant, {
+                AddEntityTarget(plant, {
                     options = {
                         {
                             type = "client",
@@ -381,21 +657,13 @@ local function spawnPlant(farmId, plantType, progress)
             
             -- Add water can interaction for all growing plants (below 80% growth)
             if (progress or 0) < 80 then
-                exports['qb-target']:AddTargetEntity(plant, {
+                AddEntityTarget(plant, {
                     options = {
                         {
                             type = "client",
                             event = "bldr_farming:waterWithCan",
                             icon = "fas fa-tint",
-                            label = function()
-                                local hasWaterCan = QBCore.Functions.HasItem('water_can') or QBCore.Functions.HasItem('watering_can')
-                                local waterLevel = data.water or 50
-                                if waterLevel >= 100 then
-                                    return hasWaterCan and "💧 Water Plant (Already Full)" or "💧 Water Plant (Need Water Can)"
-                                else
-                                    return hasWaterCan and "💧 Water Plant" or "💧 Water Plant (Need Water Can)"
-                                end
-                            end,
+                            label = "💧 Water Plant",
                             farmId = farmId,
                             canInteract = function()
                                 return not isBusy
@@ -406,8 +674,9 @@ local function spawnPlant(farmId, plantType, progress)
                 })
             
             -- Also add a coordinate-based zone around the plant for better targeting
-            exports['qb-target']:AddBoxZone('farming_plant_' .. farmId, vector3(coords.x, coords.y, coords.z + 0.8), 1.5, 1.5, {
-                name = 'farming_plant_' .. farmId,
+            local zoneName = 'farming_plant_' .. farmId
+            AddBoxZone(zoneName, vector3(coords.x, coords.y, coords.z + 0.8), 1.5, 1.5, {
+                name = zoneName,
                 heading = 0,
                 debugPoly = false,
                 minZ = coords.z,
@@ -427,6 +696,7 @@ local function spawnPlant(farmId, plantType, progress)
                 },
                 distance = 2.5,
             })
+            activeZones[zoneName] = true
             end
         end
         
@@ -477,10 +747,10 @@ local function spawnPlant(farmId, plantType, progress)
                     progress = progress or 0
                 }
                 
-                -- Add qb-target interaction if plant is mature enough (above 80% growth)
+                -- Add interaction if plant is mature enough (above 80% growth)
                 if (progress or 0) >= 80 then
                     -- Add both entity targeting and coordinate-based targeting for better detection
-                    exports['qb-target']:AddTargetEntity(plant, {
+                    AddEntityTarget(plant, {
                         options = {
                             {
                                 type = "client",
@@ -497,8 +767,9 @@ local function spawnPlant(farmId, plantType, progress)
                     })
                     
                     -- Also add a coordinate-based zone around the plant for better targeting
-                    exports['qb-target']:AddBoxZone('farming_plant_' .. farmId, vector3(coords.x, coords.y, coords.z + 0.8), 1.5, 1.5, {
-                        name = 'farming_plant_' .. farmId,
+                    local zoneName = 'farming_plant_' .. farmId
+                    AddBoxZone(zoneName, vector3(coords.x, coords.y, coords.z + 0.8), 1.5, 1.5, {
+                        name = zoneName,
                         heading = 0,
                         debugPoly = false,
                         minZ = coords.z,
@@ -518,6 +789,7 @@ local function spawnPlant(farmId, plantType, progress)
                         },
                         distance = 2.5,
                     })
+                    activeZones[zoneName] = true
                 end
                 
                 SetModelAsNoLongerNeeded(defaultModel)
@@ -551,28 +823,15 @@ local function updatePlantGrowth(farmId, progress)
     local maxScale = Config.PlantVisuals.maxScale or 1.0
     local scale = minScale + (progress / 100) * (maxScale - minScale)
     
-    -- Safely attempt to scale the object
-    local scalingWorked = false
-    if SetEntityScale then
-        pcall(function()
+    -- Safely attempt to scale the object (suppress errors for models that don't support scaling)
+    pcall(function()
+        if SetEntityScale then
             SetEntityScale(plantData.object, scale, scale, scale)
-            scalingWorked = true
-        end)
-    end
+        end
+    end)
     
-    if not scalingWorked and SetObjectScale then
-        pcall(function()
-            SetObjectScale(plantData.object, scale)
-            scalingWorked = true
-        end)
-    end
-    
-    -- If scaling failed, fall back to recreating the plant
-    if not scalingWorked then
-        print("[bldr_farming] Scaling failed, recreating plant for growth update")
-        spawnPlant(farmId, plantData.plantType, progress)
-        return
-    end
+    -- Don't recreate plant - scaling failure is normal for many prop models
+    -- The plant will just remain at its spawned size, which is acceptable
     
     -- Check if plant just became mature (reached 80% growth)
     local wasReady = (plantData.progress or 0) >= 80
@@ -584,7 +843,7 @@ local function updatePlantGrowth(farmId, progress)
         if farm then
             local coords = farm.coords
             
-            exports['qb-target']:AddTargetEntity(plantData.object, {
+            AddEntityTarget(plantData.object, {
                 options = {
                     {
                         type = "client",
@@ -601,8 +860,9 @@ local function updatePlantGrowth(farmId, progress)
             })
             
             -- Also add coordinate-based zone
-            exports['qb-target']:AddBoxZone('farming_plant_' .. farmId, vector3(coords.x, coords.y, coords.z + 0.8), 1.5, 1.5, {
-                name = 'farming_plant_' .. farmId,
+            local zoneName = 'farming_plant_' .. farmId
+            AddBoxZone(zoneName, vector3(coords.x, coords.y, coords.z + 0.8), 1.5, 1.5, {
+                name = zoneName,
                 heading = 0,
                 debugPoly = false,
                 minZ = coords.z,
@@ -622,22 +882,37 @@ local function updatePlantGrowth(farmId, progress)
                 },
                 distance = 2.5,
             })
+            activeZones[zoneName] = true
         end
     elseif wasReady and not isReady then
         -- Plant is no longer ready, remove target interactions
-        exports['qb-target']:RemoveTargetEntity(plantData.object)
-        exports['qb-target']:RemoveZone('farming_plant_' .. farmId)
+        RemoveTargetEntity(plantData.object)
+        local zoneName = 'farming_plant_' .. farmId
+        if activeZones[zoneName] then
+            RemoveZone(zoneName)
+            activeZones[zoneName] = nil
+        end
     end
     
     plantData.progress = progress
 end
 
+-- Track active zones to prevent removal warnings
+local activeZones = {}
+
 -- Function to delete a plant object
 function deletePlant(farmId)
     if plantObjects[farmId] and DoesEntityExist(plantObjects[farmId].object) then
-        -- Remove both entity and zone-based qb-target interactions before deleting the object
-        exports['qb-target']:RemoveTargetEntity(plantObjects[farmId].object)
-        exports['qb-target']:RemoveZone('farming_plant_' .. farmId)
+        -- Remove entity target
+        RemoveTargetEntity(plantObjects[farmId].object)
+        
+        -- Only remove zone if it was created
+        local zoneName = 'farming_plant_' .. farmId
+        if activeZones[zoneName] then
+            RemoveZone(zoneName)
+            activeZones[zoneName] = nil
+        end
+        
         DeleteObject(plantObjects[farmId].object)
         plantObjects[farmId] = nil
     end
@@ -660,14 +935,14 @@ CreateThread(function()
     end
 end)
 
--- create interaction zones using qb-target when the player first
--- spawns.  Use a short delay to ensure qb-target is ready.
+-- create interaction zones using target system when the player first
+-- spawns.  Use a short delay to ensure target system is ready.
 CreateThread(function()
     Wait(1000)
     for index, farm in ipairs(Config.Farms) do
         local zoneName = 'bldr_farm_' .. index
         local coords = farm.coords
-        exports['qb-target']:AddCircleZone(zoneName, coords, 1.5, {
+        AddCircleZone(zoneName, coords, 1.5, {
             name = zoneName,
             useZ = true,
             debugPoly = false
@@ -689,7 +964,7 @@ CreateThread(function()
     for index, wild in ipairs(Config.WildPlants or {}) do
         local zoneName = 'bldr_wild_' .. index
         local coords = wild.coords
-        exports['qb-target']:AddCircleZone(zoneName, coords, 1.5, {
+        AddCircleZone(zoneName, coords, 1.5, {
             name = zoneName,
             useZ = true,
             debugPoly = false
@@ -713,7 +988,7 @@ CreateThread(function()
         print(("[bldr_farming] Setting up market zone at %s"):format(tostring(mCoords)))
         
         local success, err = pcall(function()
-            exports['qb-target']:AddCircleZone('bldr_farm_market', mCoords, 2.5, {
+            AddCircleZone('bldr_farm_market', mCoords, 2.5, {
                 name = 'bldr_farm_market',
                 useZ = true,
                 debugPoly = false
@@ -1565,8 +1840,34 @@ RegisterNetEvent('bldr_farming:showContextMenu', function(data)
         })
         
     elseif state == 'ready' then
+        -- Harvest with minigame option
+        if Config.HarvestMinigame and Config.HarvestMinigame.enabled then
+            table.insert(options, {
+                title = '🌾 HARVEST CROP (MINIGAME)',
+                description = 'Test your skills for bonus rewards! Perfect timing = better yield',
+                icon = 'fas fa-gamepad',
+                iconColor = '#FF6F00',
+                metadata = {
+                    { label = 'Maturity', value = '100% Complete' },
+                    { label = 'Base Yield', value = (data.amountRange and (data.amountRange[1] .. '-' .. data.amountRange[2] .. ' units') or 'Variable') },
+                    { label = 'Bonus Potential', value = 'Up to +50% yield' },
+                    { label = 'XP Multiplier', value = 'Up to 1.5x' },
+                    { label = 'Quality Boost', value = '+20% max' }
+                },
+                onSelect = function()
+                    playFarmingEmote('harvesting', function()
+                        -- Show minigame and send result to server
+                        ShowHarvestMinigame(farmId, function(result)
+                            TriggerServerEvent('bldr_farming:harvestWithMinigame', farmId, result)
+                        end)
+                    end)
+                end
+            })
+        end
+        
+        -- Standard harvest option (always available)
         table.insert(options, {
-            title = '🌾 HARVEST CROP',
+            title = '🌾 HARVEST CROP' .. (Config.HarvestMinigame and Config.HarvestMinigame.enabled and ' (SKIP MINIGAME)' or ''),
             description = 'Plant has reached full maturity - ready for immediate harvest!',
             icon = 'fas fa-hand-paper',
             iconColor = '#FF6F00',
@@ -2218,8 +2519,11 @@ AddEventHandler('onResourceStop', function(resourceName)
         -- Remove all plant target interactions
         for farmId, plantData in pairs(plantObjects) do
             if DoesEntityExist(plantData.object) then
-                exports['qb-target']:RemoveTargetEntity(plantData.object)
-                exports['qb-target']:RemoveZone('farming_plant_' .. farmId)
+                RemoveTargetEntity(plantData.object)
+                -- Safe zone removal to prevent warnings
+                pcall(function()
+                    RemoveZone('farming_plant_' .. farmId)
+                end)
                 DeleteObject(plantData.object)
             end
         end

@@ -5,6 +5,63 @@
 
 Config = {}
 
+-- System Compatibility Settings
+-- The script will automatically detect which systems are available
+-- You can force a specific system by setting these values
+Config.Systems = {
+    -- Target system: 'auto', 'ox_target', or 'qb-target'
+    -- Auto will detect which is available
+    target = 'auto',
+    -- Inventory system: 'auto', 'ox_inventory', or 'qb-inventory'
+    -- Auto will detect which is available
+    inventory = 'auto'
+}
+
+-- Batch Harvesting System
+Config.BatchHarvest = {
+    enabled = true,
+    maxDistance = 20.0,      -- Maximum distance to include plots in batch
+    maxPlots = 5,            -- Maximum plots that can be harvested at once
+    timePerPlot = 3000,      -- 3 seconds per plot in batch
+    xpBonus = 1.2,           -- 20% XP bonus for batch harvesting
+    requiredLevel = 2        -- Minimum level to unlock batch harvesting
+}
+
+-- Harvest Minigame System
+Config.HarvestMinigame = {
+    enabled = true,
+    difficulty = 'medium',   -- 'easy', 'medium', 'hard'
+    type = 'timing',         -- 'timing' or 'pattern'
+    timing = {
+        easy = { speed = 1.5, perfectZone = 0.3, goodZone = 0.5 },
+        medium = { speed = 2.0, perfectZone = 0.2, goodZone = 0.4 },
+        hard = { speed = 2.5, perfectZone = 0.1, goodZone = 0.3 }
+    },
+    rewards = {
+        perfect = { qualityBonus = 20, yieldBonus = 0.5, xpMultiplier = 1.5 },
+        good = { qualityBonus = 10, yieldBonus = 0.25, xpMultiplier = 1.2 },
+        ok = { qualityBonus = 0, yieldBonus = 0, xpMultiplier = 1.0 },
+        failed = { qualityBonus = -10, yieldBonus = -0.25, xpMultiplier = 0.8 }
+    },
+    skipOption = true  -- Allow players to skip minigame for standard rewards
+}
+
+-- Entry location for weed facility (outside entrance)
+Config.WeedFacilityEntry = {
+    coords = vector3(116.87, -1990.39, 17.49), -- Outside entrance
+    label = 'Enter Weed Facility',
+    icon = 'fas fa-door-open',
+    teleportCoords = vector3(1066.06, -3183.22, -40.16) -- Interior location
+}
+
+-- Exit location for weed facility (inside exit)
+Config.WeedFacilityExit = {
+    coords = vector3(1066.14, -3183.33, -40.16), -- Inside exit point
+    label = 'Exit Weed Facility',
+    icon = 'fas fa-door-closed',
+    teleportCoords = vector3(116.87, -1990.39, 17.49) -- Outside destination
+}
+
 -- List of farming plots.  You can add more entries or adjust the
 -- existing coordinates.  Each plot has its own growth timer and
 -- yields.  Note that growTime is in milliseconds (600000 ms = 10

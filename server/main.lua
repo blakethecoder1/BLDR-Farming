@@ -4,6 +4,57 @@
 
 local QBCore = exports['qb-core']:GetCoreObject()
 
+-- Detect which inventory system is available
+local InventorySystem = nil
+if GetResourceState('ox_inventory') == 'started' then
+    InventorySystem = 'ox_inventory'
+    print("[bldr_farming] Using ox_inventory")
+elseif GetResourceState('qb-inventory') == 'started' then
+    InventorySystem = 'qb-inventory'
+    print("[bldr_farming] Using qb-inventory")
+else
+    InventorySystem = 'qbcore'
+    print("[bldr_farming] Using QBCore default inventory")
+end
+
+-- Inventory wrapper functions
+local function GetItem(src, itemName)
+    if InventorySystem == 'ox_inventory' then
+        local item = exports.ox_inventory:GetItem(src, itemName, nil, true)
+        return item and { name = itemName, amount = item, label = itemName } or nil
+    else
+        local Player = QBCore.Functions.GetPlayer(src)
+        if Player then
+            return Player.Functions.GetItemByName(itemName)
+        end
+    end
+    return nil
+end
+
+local function AddItem(src, itemName, amount, metadata)
+    if InventorySystem == 'ox_inventory' then
+        return exports.ox_inventory:AddItem(src, itemName, amount, metadata)
+    else
+        local Player = QBCore.Functions.GetPlayer(src)
+        if Player then
+            return Player.Functions.AddItem(itemName, amount, false, metadata)
+        end
+    end
+    return false
+end
+
+local function RemoveItem(src, itemName, amount)
+    if InventorySystem == 'ox_inventory' then
+        return exports.ox_inventory:RemoveItem(src, itemName, amount)
+    else
+        local Player = QBCore.Functions.GetPlayer(src)
+        if Player then
+            return Player.Functions.RemoveItem(itemName, amount)
+        end
+    end
+    return false
+end
+
 -- Helper function to get table keys
 local function getTableKeys(t)
     if not t or type(t) ~= 'table' then return {} end
@@ -36,14 +87,14 @@ local coreExports = {
 -- Initialize core export cache
 CreateThread(function()
     Wait(1000) -- Wait for other resources to load
-    if exports['bldr_core'] then
-        coreExports.xp = exports['bldr_core'].AddXP
-        coreExports.level = exports['bldr_core'].GetLevel
-        coreExports.money = exports['bldr_core'].AddMoney
-    elseif exports['bldr_drugs_core'] then
-        coreExports.xp = exports['bldr_drugs_core'].AddXP
-        coreExports.level = exports['bldr_drugs_core'].GetLevel
-        coreExports.money = exports['bldr_drugs_core'].AddMoney
+    if exports['bldr-core'] then
+        coreExports.xp = exports['bldr-core'].AddXP
+        coreExports.level = exports['bldr-core'].GetLevel
+        coreExports.money = exports['bldr-core'].AddMoney
+    elseif exports['bldr-drugs-core'] then
+        coreExports.xp = exports['bldr-drugs-core'].AddXP
+        coreExports.level = exports['bldr-drugs-core'].GetLevel
+        coreExports.money = exports['bldr-drugs-core'].AddMoney
     end
 end)
 
@@ -324,27 +375,27 @@ local function checkBlueprintRewards(src)
     -- determine current level from core exports
     local lvl = 0
     local coreExport = nil
-    if exports['bldr_core'] and exports['bldr_core'].GetLevel then
-        coreExport = exports['bldr_core']
-    elseif exports['bldr_drugs_core'] and exports['bldr_drugs_core'].GetLevel then
-        coreExport = exports['bldr_drugs_core']
+    if exports['bldr-core'] and exports['bldr-core'].GetLevel then
+        coreExport = exports['bldr-core']
+    elseif exports['bldr-drugs-core'] and exports['bldr-drugs-core'].GetLevel then
+        coreExport = exports['bldr-drugs-core']
     end
     if coreExport then
         lvl = coreExport:GetLevel(src) or 0
     end
     -- reward weed joint blueprint at level >=2
     if lvl >= 2 then
-        local item = Player.Functions.GetItemByName('weed_joint_bp')
+        local item = GetItem(src, 'weed_joint_bp')
         if not item or item.amount < 1 then
-            Player.Functions.AddItem('weed_joint_bp', 1)
+            AddItem(src, 'weed_joint_bp', 1)
             notify(src, 'You have unlocked a new blueprint: Joint', 'success')
         end
     end
     -- reward cocaine bag blueprint at level >=4
     if lvl >= 4 then
-        local item = Player.Functions.GetItemByName('cocaine_bag_bp')
+        local item = GetItem(src, 'cocaine_bag_bp')
         if not item or item.amount < 1 then
-            Player.Functions.AddItem('cocaine_bag_bp', 1)
+            AddItem(src, 'cocaine_bag_bp', 1)
             notify(src, 'You have unlocked a new blueprint: Cocaine Bag', 'success')
         end
     end
@@ -376,10 +427,10 @@ RegisterNetEvent('bldr_farming:interact', function(farmId)
         local levelReq = Config.LevelUnlocks[seedItem] or 0
         local lvl = 0
         local coreExport = nil
-        if exports['bldr_core'] and exports['bldr_core'].GetLevel then
-            coreExport = exports['bldr_core']
-        elseif exports['bldr_drugs_core'] and exports['bldr_drugs_core'].GetLevel then
-            coreExport = exports['bldr_drugs_core']
+        if exports['bldr-core'] and exports['bldr-core'].GetLevel then
+            coreExport = exports['bldr-core']
+        elseif exports['bldr-drugs-core'] and exports['bldr-drugs-core'].GetLevel then
+            coreExport = exports['bldr-drugs-core']
         end
         if coreExport then
             lvl = coreExport:GetLevel(src) or 0
@@ -391,7 +442,7 @@ RegisterNetEvent('bldr_farming:interact', function(farmId)
             print("[bldr_farming] Level requirement not met: " .. lvl .. " < " .. levelReq)
             return
         end
-        local invItem = Player.Functions.GetItemByName(seedItem)
+        local invItem = GetItem(src, seedItem)
         print("[bldr_farming] Checking for seed item: " .. seedItem)
         print("[bldr_farming] Player has item: " .. tostring(invItem and invItem.amount or 0))
         
@@ -400,7 +451,7 @@ RegisterNetEvent('bldr_farming:interact', function(farmId)
             print("[bldr_farming] Player missing seed item: " .. seedItem)
             return
         end
-        Player.Functions.RemoveItem(seedItem, 1)
+        RemoveItem(src, seedItem, 1)
         stateInfo.state       = 'growing'
         -- record the seed and harvest item for this plot so we
         -- can reference it later (e.g. for police alerts)
@@ -456,7 +507,7 @@ RegisterNetEvent('bldr_farming:interact', function(farmId)
         
         -- Add items with quality
         for i=1, amount do
-            Player.Functions.AddItem(harvestItem, 1, false, { quality = quality })
+            AddItem(src, harvestItem, 1, nil)  -- No quality metadata
         end
         
         -- Harvest notification
@@ -468,10 +519,10 @@ RegisterNetEvent('bldr_farming:interact', function(farmId)
         -- award XP
         local xpVal = farm.xp or 0
         local xpExport = nil
-        if exports['bldr_core'] and exports['bldr_core'].AddXP then
-            xpExport = exports['bldr_core']
-        elseif exports['bldr_drugs_core'] and exports['bldr_drugs_core'].AddXP then
-            xpExport = exports['bldr_drugs_core']
+        if exports['bldr-core'] and exports['bldr-core'].AddXP then
+            xpExport = exports['bldr-core']
+        elseif exports['bldr-drugs-core'] and exports['bldr-drugs-core'].AddXP then
+            xpExport = exports['bldr-drugs-core']
         end
         if xpExport and xpVal > 0 then
             xpExport:AddXP(src, xpVal)
@@ -512,12 +563,12 @@ RegisterNetEvent('bldr_farming:water', function(farmId)
     local Player = QBCore.Functions.GetPlayer(src)
     if not Player then return end
     local waterItem = Config.Water.waterItem
-    local invItem   = Player.Functions.GetItemByName(waterItem)
+    local invItem   = GetItem(src, waterItem)
     if not invItem or invItem.amount < 1 then
         notify(src, ('💧 Water Can Required | You need a %s to hydrate your plants'):format(waterItem:gsub('_', ' ')), 'error')
         return
     end
-    Player.Functions.RemoveItem(waterItem, 1)
+    RemoveItem(src, waterItem, 1)
     local oldWater = stateInfo.water or 0
     stateInfo.water = math.min(Config.Water.maxWater, oldWater + Config.Water.addAmount)
     local newPercent = math.floor((stateInfo.water / Config.Water.maxWater) * 100)
@@ -541,15 +592,309 @@ RegisterNetEvent('bldr_farming:waterWithCan', function(farmId)
     if not Player then return end
     
     -- Check for water can items
-    local waterCanItem = Player.Functions.GetItemByName('water_can') or Player.Functions.GetItemByName('watering_can')
+    local waterCanItem = GetItem(src, 'water_can') or GetItem(src, 'watering_can')
     if not waterCanItem or waterCanItem.amount < 1 then
         notify(src, '💧 Water Can Required | You need a water can to irrigate plants properly', 'error')
         return
     end
     
+
+-- =================================================================
+-- BATCH HARVESTING SYSTEM
+-- =================================================================
+
+RegisterNetEvent('bldr_farming:batchHarvest', function(plotIds)
+    local src = source
+    
+    if not Config.BatchHarvest or not Config.BatchHarvest.enabled then
+        notify(src, 'Batch harvesting is not enabled', 'error')
+        return
+    end
+    
+    -- Check player level requirement
+    local lvl = 0
+    local coreExport = nil
+    if exports['bldr-core'] and exports['bldr-core'].GetLevel then
+        coreExport = exports['bldr-core']
+    elseif exports['bldr-drugs-core'] and exports['bldr-drugs-core'].GetLevel then
+        coreExport = exports['bldr-drugs-core']
+    end
+    if coreExport then
+        lvl = coreExport:GetLevel(src) or 0
+    end
+    
+    if lvl < (Config.BatchHarvest.requiredLevel or 0) then
+        notify(src, ('🔒 Level Required | You need level %d to use batch harvesting'):format(Config.BatchHarvest.requiredLevel), 'error')
+        return
+    end
+    
+    -- Validate plots
+    if not plotIds or type(plotIds) ~= 'table' or #plotIds == 0 then
+        notify(src, 'No plots selected for batch harvest', 'error')
+        return
+    end
+    
+    if #plotIds > (Config.BatchHarvest.maxPlots or 5) then
+        notify(src, ('Maximum %d plots can be harvested at once'):format(Config.BatchHarvest.maxPlots), 'error')
+        return
+    end
+    
+    local readyPlots = {}
+    local Player = QBCore.Functions.GetPlayer(src)
+    if not Player then return end
+    
+    -- Verify all plots are ready
+    for _, farmId in ipairs(plotIds) do
+        farmId = tonumber(farmId)
+        if farmId and Config.Farms[farmId] and farmStates[farmId] and farmStates[farmId].state == 'ready' then
+            table.insert(readyPlots, farmId)
+        end
+    end
+    
+    if #readyPlots == 0 then
+        notify(src, 'No ready plots found for batch harvest', 'error')
+        return
+    end
+    
+    -- Start batch harvest
+    notify(src, ('🌾 Batch Harvest Started | Harvesting %d plots...'):format(#readyPlots), 'primary')
+    
+    local totalHarvested = 0
+    local totalXP = 0
+    local harvestedItems = {}
+    
+    for i, farmId in ipairs(readyPlots) do
+        local stateInfo = farmStates[farmId]
+        local farm = Config.Farms[farmId]
+        local harvestItem = farm.harvestItem
+        local amountRange = farm.amountRange or {1,3}
+        local minAmt, maxAmt = amountRange[1], amountRange[2]
+        local amount = math.random(minAmt, maxAmt)
+        
+        -- Apply batch harvest bonus
+        if Config.BatchHarvest.xpBonus then
+            local bonusAmount = math.floor(amount * (Config.BatchHarvest.xpBonus - 1))
+            amount = amount + bonusAmount
+        end
+        
+        -- Apply fertilizer yield bonus
+        if stateInfo.fertilized and stateInfo.fertilizerBonus and stateInfo.fertilizerBonus.yieldBonus then
+            local bonus = math.floor(amount * stateInfo.fertilizerBonus.yieldBonus)
+            amount = amount + bonus
+        end
+        
+        -- Calculate quality
+        local quality = 75
+        if Config.Water.enabled then
+            local water = stateInfo.water or Config.Water.maxWater
+            local ratio = water / Config.Water.maxWater
+            quality = math.max(1, math.min(100, math.floor(ratio * 100) + math.random(-10,10)))
+        end
+        
+        -- Apply fertilizer quality bonus
+        if stateInfo.fertilized and stateInfo.fertilizerBonus and stateInfo.fertilizerBonus.qualityBonus then
+            quality = math.min(100, quality + stateInfo.fertilizerBonus.qualityBonus)
+        end
+        
+        -- Add items
+        for j=1, amount do
+            AddItem(src, harvestItem, 1, nil)  -- No quality metadata
+        end
+        
+        -- Track harvested items
+        if not harvestedItems[harvestItem] then
+            harvestedItems[harvestItem] = 0
+        end
+        harvestedItems[harvestItem] = harvestedItems[harvestItem] + amount
+        totalHarvested = totalHarvested + amount
+        
+        -- Award XP with batch bonus
+        local xpVal = farm.xp or 0
+        if Config.BatchHarvest.xpBonus then
+            xpVal = math.floor(xpVal * Config.BatchHarvest.xpBonus)
+        end
+        totalXP = totalXP + xpVal
+        
+        -- Reset plot state
+        stateInfo.state = 'empty'
+        stateInfo.readyTime = 0
+        stateInfo.water = 0
+        stateInfo.fertilized = nil
+        stateInfo.fertilizerBonus = nil
+        stateInfo.plantItem = nil
+        stateInfo.harvestItem = nil
+        
+        -- Notify clients
+        TriggerClientEvent('bldr_farming:plantHarvested', -1, farmId)
+        
+        -- Alert police (low chance per plot)
+        if math.random() < 0.3 then
+            alertPolice(harvestItem, farm.coords)
+        end
+    end
+    
+    -- Award total XP
+    local xpExport = nil
+    if exports['bldr-core'] and exports['bldr-core'].AddXP then
+        xpExport = exports['bldr-core']
+    elseif exports['bldr-drugs-core'] and exports['bldr-drugs-core'].AddXP then
+        xpExport = exports['bldr-drugs-core']
+    end
+    if xpExport and totalXP > 0 then
+        xpExport:AddXP(src, totalXP)
+        checkBlueprintRewards(src)
+    end
+    
+    -- Update statistics
+    if exports['bldr-core'] and exports['bldr-core'].UpdateStat then
+        exports['bldr-core']:UpdateStat(src, 'plants_harvested', #readyPlots)
+        exports['bldr-core']:UpdateStat(src, 'total_farming_xp', totalXP)
+    end
+    
+    -- Build notification message
+    local itemsText = {}
+    for item, count in pairs(harvestedItems) do
+        table.insert(itemsText, ('%dx %s'):format(count, item))
+    end
+    
+    notify(src, ('✅ Batch Harvest Complete | Harvested %d plots: %s (+%d XP)'):format(
+        #readyPlots, table.concat(itemsText, ', '), totalXP
+    ), 'success')
+end)
+
+-- =================================================================
+-- HARVEST MINIGAME SYSTEM
+-- =================================================================
+
+RegisterNetEvent('bldr_farming:harvestWithMinigame', function(farmId, minigameResult)
+    local src = source
+    farmId = tonumber(farmId)
+    
+    if not farmId or not Config.Farms[farmId] then return end
+    if not Config.HarvestMinigame or not Config.HarvestMinigame.enabled then return end
+    
+    local stateInfo = farmStates[farmId]
+    if stateInfo.state ~= 'ready' then
+        notify(src, 'This plot is not ready for harvest', 'error')
+        return
+    end
+    
+    local farm = Config.Farms[farmId]
+    local harvestItem = farm.harvestItem
+    local amountRange = farm.amountRange or {1,3}
+    local minAmt, maxAmt = amountRange[1], amountRange[2]
+    local amount = math.random(minAmt, maxAmt)
+    
+    -- Base quality
+    local quality = 75
+    if Config.Water.enabled then
+        local water = stateInfo.water or Config.Water.maxWater
+        local ratio = water / Config.Water.maxWater
+        quality = math.max(1, math.min(100, math.floor(ratio * 100) + math.random(-10,10)))
+    end
+    
+    -- Apply minigame result bonuses
+    local resultData = Config.HarvestMinigame.rewards[minigameResult] or Config.HarvestMinigame.rewards.ok
+    
+    -- Yield bonus
+    if resultData.yieldBonus then
+        local bonusAmount = math.floor(amount * resultData.yieldBonus)
+        amount = math.max(1, amount + bonusAmount)
+    end
+    
+    -- Quality bonus
+    if resultData.qualityBonus then
+        quality = math.max(1, math.min(100, quality + resultData.qualityBonus))
+    end
+    
+    -- Calculate quality for core system
+    local qualityFactors = {
+        equipment = 0,
+        minigame = resultData.qualityBonus or 0,
+        random = 0
+    }
+    
+    if exports['bldr-core'] and exports['bldr-core'].CalculateQuality then
+        quality = exports['bldr-core']:CalculateQuality(src, quality, qualityFactors)
+    end
+    
+    -- Apply fertilizer bonuses
+    if stateInfo.fertilized and stateInfo.fertilizerBonus then
+        if stateInfo.fertilizerBonus.yieldBonus then
+            local bonus = math.floor(amount * stateInfo.fertilizerBonus.yieldBonus)
+            amount = amount + bonus
+        end
+        if stateInfo.fertilizerBonus.qualityBonus then
+            quality = math.min(100, quality + stateInfo.fertilizerBonus.qualityBonus)
+        end
+    end
+    
+    -- Add items with quality
+    for i=1, amount do
+        AddItem(src, harvestItem, 1, nil)  -- No quality metadata
+    end
+    
+    -- Award XP with minigame multiplier
+    local xpVal = farm.xp or 0
+    if resultData.xpMultiplier then
+        xpVal = math.floor(xpVal * resultData.xpMultiplier)
+    end
+    
+    local xpExport = nil
+    if exports['bldr-core'] and exports['bldr-core'].AddXP then
+        xpExport = exports['bldr-core']
+    elseif exports['bldr-drugs-core'] and exports['bldr-drugs-core'].AddXP then
+        xpExport = exports['bldr-drugs-core']
+    end
+    if xpExport and xpVal > 0 then
+        xpExport:AddXP(src, xpVal)
+        checkBlueprintRewards(src)
+    end
+    
+    -- Update statistics
+    if exports['bldr-core'] and exports['bldr-core'].UpdateStat then
+        exports['bldr-core']:UpdateStat(src, 'plants_harvested', 1)
+        exports['bldr-core']:UpdateStat(src, 'total_farming_xp', xpVal)
+    end
+    
+    -- Get quality tier for display
+    local qualityTier = 'Common'
+    if exports['bldr-core'] and exports['bldr-core'].GetQualityTier then
+        local tierInfo = exports['bldr-core']:GetQualityTier(quality)
+        qualityTier = tierInfo.label
+    end
+    
+    -- Notify with result
+    local resultEmoji = {
+        perfect = '⭐',
+        good = '✨',
+        ok = '✓',
+        failed = '⚠️'
+    }
+    
+    local emoji = resultEmoji[minigameResult] or '✓'
+    notify(src, ('%s Harvested %dx %s | Quality: %s (%d%%) | Result: %s (+%d XP)'):format(
+        emoji, amount, harvestItem, qualityTier, quality, minigameResult:upper(), xpVal
+    ), 'success')
+    
+    -- Alert police
+    alertPolice(harvestItem, farm.coords)
+    
+    -- Reset plot state
+    stateInfo.state = 'empty'
+    stateInfo.readyTime = 0
+    stateInfo.water = 0
+    stateInfo.fertilized = nil
+    stateInfo.fertilizerBonus = nil
+    stateInfo.plantItem = nil
+    stateInfo.harvestItem = nil
+    
+    -- Notify clients
+    TriggerClientEvent('bldr_farming:plantHarvested', -1, farmId)
+end)
     -- Remove water can item (consumes usage)
     local itemName = waterCanItem.name
-    Player.Functions.RemoveItem(itemName, 1)
+    RemoveItem(src, itemName, 1)
     
     -- Apply water to plant
     local oldWater = stateInfo.water or 0
@@ -593,10 +938,13 @@ RegisterNetEvent('bldr_farming:fertilize', function(farmId)
     local fertilizer = nil
     local fertilizerType = nil
     
-    if Player.Functions.GetItemByName('premium_fertilizer') and Player.Functions.GetItemByName('premium_fertilizer').amount > 0 then
+    local premiumFert = GetItem(src, 'premium_fertilizer')
+    local basicFert = GetItem(src, 'basic_fertilizer')
+    
+    if premiumFert and premiumFert.amount > 0 then
         fertilizer = 'premium_fertilizer'
         fertilizerType = Config.Fertilizer.types.premium_fertilizer
-    elseif Player.Functions.GetItemByName('basic_fertilizer') and Player.Functions.GetItemByName('basic_fertilizer').amount > 0 then
+    elseif basicFert and basicFert.amount > 0 then
         fertilizer = 'basic_fertilizer'
         fertilizerType = Config.Fertilizer.types.basic_fertilizer
     end
@@ -606,7 +954,7 @@ RegisterNetEvent('bldr_farming:fertilize', function(farmId)
         return
     end
     
-    Player.Functions.RemoveItem(fertilizer, 1)
+    RemoveItem(src, fertilizer, 1)
     stateInfo.fertilized = fertilizer
     stateInfo.fertilizerBonus = fertilizerType
     
@@ -751,10 +1099,10 @@ RegisterNetEvent('bldr_farming:buyItem', function(itemName, amount)
     local levelReq = itemCfg.minLevel or 0
     local lvl = 0
     local coreExport = nil
-    if exports['bldr_core'] and exports['bldr_core'].GetLevel then
-        coreExport = exports['bldr_core']
-    elseif exports['bldr_drugs_core'] and exports['bldr_drugs_core'].GetLevel then
-        coreExport = exports['bldr_drugs_core']
+    if exports['bldr-core'] and exports['bldr-core'].GetLevel then
+        coreExport = exports['bldr-core']
+    elseif exports['bldr-drugs-core'] and exports['bldr-drugs-core'].GetLevel then
+        coreExport = exports['bldr-drugs-core']
     end
     if coreExport then
         lvl = coreExport:GetLevel(src) or 0
@@ -774,7 +1122,7 @@ RegisterNetEvent('bldr_farming:buyItem', function(itemName, amount)
         return
     end
     -- add items to inventory
-    Player.Functions.AddItem(itemName, amount)
+    AddItem(src, itemName, amount)
     -- adjust price upward
     local adjust = Config.Market.priceAdjust or 0
     local newPrice = currentPrice * (1 + adjust)
@@ -801,10 +1149,10 @@ RegisterNetEvent('bldr_farming:sellItem', function(itemName, amount)
     local levelReq = itemCfg.minLevel or 0
     local lvl = 0
     local coreExport = nil
-    if exports['bldr_core'] and exports['bldr_core'].GetLevel then
-        coreExport = exports['bldr_core']
-    elseif exports['bldr_drugs_core'] and exports['bldr_drugs_core'].GetLevel then
-        coreExport = exports['bldr_drugs_core']
+    if exports['bldr-core'] and exports['bldr-core'].GetLevel then
+        coreExport = exports['bldr-core']
+    elseif exports['bldr-drugs-core'] and exports['bldr-drugs-core'].GetLevel then
+        coreExport = exports['bldr-drugs-core']
     end
     if coreExport then
         lvl = coreExport:GetLevel(src) or 0
@@ -815,22 +1163,22 @@ RegisterNetEvent('bldr_farming:sellItem', function(itemName, amount)
     end
     local Player = QBCore.Functions.GetPlayer(src)
     if not Player then return end
-    local invItem = Player.Functions.GetItemByName(itemName)
+    local invItem = GetItem(src, itemName)
     if not invItem or invItem.amount < amount then
         notify(src, 'You do not have enough to sell.', 'error')
         return
     end
     -- remove items
-    Player.Functions.RemoveItem(itemName, amount)
+    RemoveItem(src, itemName, amount)
     -- compute payout
     local currentPrice = MarketState[itemName] or itemCfg.price
     local total = math.floor(currentPrice * amount)
     -- pay via core exports or fallback to cash
     local payExport = nil
-    if exports['bldr_core'] and exports['bldr_core'].AddMoney then
-        payExport = exports['bldr_core']
-    elseif exports['bldr_drugs_core'] and exports['bldr_drugs_core'].AddMoney then
-        payExport = exports['bldr_drugs_core']
+    if exports['bldr-core'] and exports['bldr-core'].AddMoney then
+        payExport = exports['bldr-core']
+    elseif exports['bldr-drugs-core'] and exports['bldr-drugs-core'].AddMoney then
+        payExport = exports['bldr-drugs-core']
     end
     if payExport then
         payExport:AddMoney(src, total)
@@ -869,15 +1217,15 @@ RegisterNetEvent('bldr_farming:harvestWild', function(wildId)
     -- random quality between 80 and 100
     local quality = math.random(80, 100)
     for i=1, amount do
-        Player.Functions.AddItem(wild.item, 1, false, { quality = quality })
+        AddItem(src, wild.item, 1, { quality = quality })
     end
     -- award XP
     local xpVal = wild.xp or 0
     local xpExport = nil
-    if exports['bldr_core'] and exports['bldr_core'].AddXP then
-        xpExport = exports['bldr_core']
-    elseif exports['bldr_drugs_core'] and exports['bldr_drugs_core'].AddXP then
-        xpExport = exports['bldr_drugs_core']
+    if exports['bldr-core'] and exports['bldr-core'].AddXP then
+        xpExport = exports['bldr-core']
+    elseif exports['bldr-drugs-core'] and exports['bldr-drugs-core'].AddXP then
+        xpExport = exports['bldr-drugs-core']
     end
     if xpExport and xpVal > 0 then
         xpExport:AddXP(src, xpVal)
@@ -922,13 +1270,13 @@ RegisterCommand('farmadmin', function(source, args)
     if action == 'seeds' or action == 'seed' then
         local seeds = { 'weed_seed', 'coca_seed', 'poppy_seed', 'lavender_seed' }
         for _, item in ipairs(seeds) do
-            Player.Functions.AddItem(item, 5)
+            AddItem(src, item, 5)
         end
         notify(src, 'Admin: You have been given farming seeds.', 'success')
     elseif action == 'bps' or action == 'blueprints' or action == 'bp' then
         local bps = { 'weed_joint_bp', 'cocaine_bag_bp' }
         for _, item in ipairs(bps) do
-            Player.Functions.AddItem(item, 1)
+            AddItem(src, item, 1)
         end
         notify(src, 'Admin: You have been given blueprint items.', 'success')
     elseif action == 'xp' then
@@ -938,10 +1286,10 @@ RegisterCommand('farmadmin', function(source, args)
             return
         end
         local xpExport = nil
-        if exports['bldr_core'] and exports['bldr_core'].AddXP then
-            xpExport = exports['bldr_core']
-        elseif exports['bldr_drugs_core'] and exports['bldr_drugs_core'].AddXP then
-            xpExport = exports['bldr_drugs_core']
+        if exports['bldr-core'] and exports['bldr-core'].AddXP then
+            xpExport = exports['bldr-core']
+        elseif exports['bldr-drugs-core'] and exports['bldr-drugs-core'].AddXP then
+            xpExport = exports['bldr-drugs-core']
         end
         if xpExport then
             xpExport:AddXP(src, amount)
@@ -958,9 +1306,160 @@ RegisterCommand('farmadmin', function(source, args)
             notify(src, 'Usage: /farmadmin item <name> <amount>', 'error')
             return
         end
-        Player.Functions.AddItem(itemName, count)
+        AddItem(src, itemName, count)
         notify(src, ('Admin: Given %d x %s.'):format(count, itemName), 'success')
     else
         notify(src, 'Invalid subcommand. Use seeds, bps, xp, or item.', 'error')
     end
 end, false)
+
+-- 🌾 FARMING TEST & ADMIN COMMANDS
+
+-- Give seeds to player
+RegisterCommand('giveseeds', function(source, args, rawCommand)
+    local src = source
+    local Player = QBCore.Functions.GetPlayer(src)
+    
+    if not isBLDRAdmin(src) then
+        notify(src, '❌ Permission Denied | Admin only', 'error')
+        return
+    end
+    
+    local seedType = args[1] or 'weed_seed'
+    local amount = tonumber(args[2]) or 10
+    
+    AddItem(src, seedType, amount)
+    notify(src, string.format('🌱 Given %dx %s', amount, seedType), 'success')
+end, false)
+
+-- Force plant to mature
+RegisterCommand('matureplant', function(source, args, rawCommand)
+    local src = source
+    
+    if not isBLDRAdmin(src) then
+        notify(src, '❌ Permission Denied | Admin only', 'error')
+        return
+    end
+    
+    local farmId = tonumber(args[1])
+    
+    if not farmId or not farmStates[farmId] then
+        notify(src, '❌ Invalid Farm ID', 'error')
+        return
+    end
+    
+    if farmStates[farmId].state ~= 'growing' then
+        notify(src, '❌ Farm plot is not growing', 'error')
+        return
+    end
+    
+    farmStates[farmId].readyTime = os.time() - 1
+    farmStates[farmId].state = 'ready'
+    
+    TriggerClientEvent('bldr_farming:updatePlantVisual', -1, farmId, 'ready', 100, farmStates[farmId].plantItem)
+    notify(src, string.format('🌾 Farm Plot %d | Plant matured instantly', farmId), 'success')
+    
+    print(string.format('[BLDR Farming] Admin %s matured farm plot %d', GetPlayerName(src), farmId))
+end, false)
+
+-- Reset farm plot
+RegisterCommand('resetfarm', function(source, args, rawCommand)
+    local src = source
+    
+    if not isBLDRAdmin(src) then
+        notify(src, '❌ Permission Denied | Admin only', 'error')
+        return
+    end
+    
+    local farmId = tonumber(args[1])
+    
+    if not farmId or not Config.Farms[farmId] then
+        notify(src, '❌ Invalid Farm ID', 'error')
+        return
+    end
+    
+    farmStates[farmId] = { state = 'empty', water = Config.Water.maxWater, plantItem = nil }
+    
+    TriggerClientEvent('bldr_farming:updatePlantVisual', -1, farmId, 'empty', 0, nil)
+    notify(src, string.format('🛠️ Farm Plot %d | Reset to empty', farmId), 'success')
+    
+    print(string.format('[BLDR Farming] Admin %s reset farm plot %d', GetPlayerName(src), farmId))
+end, false)
+
+-- Check farm status
+RegisterCommand('checkfarm', function(source, args, rawCommand)
+    local src = source
+    
+    if not isBLDRAdmin(src) then
+        notify(src, '❌ Permission Denied | Admin only', 'error')
+        return
+    end
+    
+    local farmId = tonumber(args[1])
+    
+    if not farmId or not farmStates[farmId] then
+        notify(src, '❌ Invalid Farm ID', 'error')
+        return
+    end
+    
+    local farm = farmStates[farmId]
+    local statusMsg = string.format(
+        '📊 Farm Plot %d Status:\n' ..
+        'State: %s\n' ..
+        'Plant: %s\n' ..
+        'Water: %d%%\n' ..
+        'Fertilized: %s\n' ..
+        'Owner: %s',
+        farmId,
+        farm.state or 'unknown',
+        farm.plantItem or 'none',
+        farm.water or 0,
+        farm.fertilized or 'no',
+        farm.ownerId or 'none'
+    )
+    
+    notify(src, statusMsg, 'primary', 8000)
+    print(string.format('[BLDR Farming] Admin %s checked farm %d: %s', GetPlayerName(src), farmId, farm.state))
+end, false)
+
+-- List all active farms
+RegisterCommand('listfarms', function(source, args, rawCommand)
+    local src = source
+    
+    if not isBLDRAdmin(src) then
+        notify(src, '❌ Permission Denied | Admin only', 'error')
+        return
+    end
+    
+    local activeCount = 0
+    local growingCount = 0
+    local readyCount = 0
+    
+    for farmId, farm in pairs(farmStates) do
+        if farm.state ~= 'empty' then
+            activeCount = activeCount + 1
+            if farm.state == 'growing' then
+                growingCount = growingCount + 1
+            elseif farm.state == 'ready' then
+                readyCount = readyCount + 1
+            end
+        end
+    end
+    
+    local statusMsg = string.format(
+        '🏞️ Farm Status Report:\n' ..
+        'Total Plots: %d\n' ..
+        'Active: %d\n' ..
+        'Growing: %d\n' ..
+        'Ready: %d',
+        #Config.Farms,
+        activeCount,
+        growingCount,
+        readyCount
+    )
+    
+    notify(src, statusMsg, 'primary', 6000)
+    print('[BLDR Farming] Farm status:', activeCount, 'active,', growingCount, 'growing,', readyCount, 'ready')
+end, false)
+
+print('[BLDR Farming] 🛠️ Admin commands loaded: /giveseeds, /matureplant, /resetfarm, /checkfarm, /listfarms')

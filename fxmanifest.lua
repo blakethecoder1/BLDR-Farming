@@ -14,15 +14,20 @@ description 'Simple farming system for BLDR'
 author 'blakethepet'
 
 dependencies {
-    'bldr_core',
-    'qb-core',
-    'qb-target'
+    'bldr-core',
+    'qb-core'
+    -- 'qb-target' -- Optional: use qb-target OR ox_target
+    -- 'ox_target' -- Optional: use ox_target OR qb-target
+    -- 'ox_inventory' -- Optional: use ox_inventory OR qb-inventory
 }
 
 shared_script 'config.lua'
 
 client_scripts {
-    'client/main.lua'
+    'client/progressbar.lua',
+    'client/main.lua',
+    'client/minigame.lua',
+    'client/batch.lua'
 }
 
 server_scripts {

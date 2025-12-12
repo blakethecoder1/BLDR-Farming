@@ -213,20 +213,38 @@ Config.Emotes = {
 
 ### For Players
 
-1. **Obtain Seeds** - Purchase or find seeds (weed_seed, coca_seed, poppy_seed)
-2. **Find a Plot** - Locate farming plots marked on the map
-3. **Plant Seeds** - Use qb-target on empty plots to plant
-4. **Water Crops** - Return regularly to water your plants
-5. **Harvest** - When plants are fully grown, harvest them for items
-6. **Gain XP** - Each harvest earns XP through bldr_core
-7. **Level Up** - Higher levels unlock better crops
+1. **Obtain Seeds** - Purchase seeds from the farming market or find them
+2. **Find a Plot** - Locate farming plots (coordinates in config)
+3. **Plant Seeds** - Use qb-target/ox_target on empty plots to plant
+4. **Water Crops** - Return regularly to water your plants (if water system enabled)
+5. **Play Minigame** - Complete the harvest minigame for quality bonuses
+6. **Harvest** - Collect your grown crops and earn rewards
+7. **Gain XP** - Each harvest earns XP through bldr_core
+8. **Level Up** - Higher levels unlock better crops and features
 
-### For Farmers
+### Interaction System
 
-- **Check Growth Progress** - Interact with growing plants to check status
+**Using qb-target or ox_target:**
+- Look at an empty plot and press `[E]` or `[Third Eye]` to plant
+- Target growing plants to:
+  - Check growth progress
+  - Water the plant (if needed)
+  - Apply fertilizer (if available)
+  - Treat disease (if infected)
+- Target ready plants to harvest
+
+### For Advanced Farmers
+
+- **Batch Harvesting** - Harvest multiple plots at once (Level 2+)
+- **Minigame Mastery** - Perfect scores give quality/yield bonuses
 - **Water Management** - Plants die without regular watering
-- **Optimal Timing** - Harvest at peak growth for maximum yield
-- **Weather Awareness** - Some weather conditions boost growth
+- **Disease Treatment** - Use pesticides/fungicides to cure infections
+- **Fertilizer Use** - Boost growth speed and yield
+- **Weather Awareness** - Rain helps growth, drought increases water loss
+- **Seasonal Farming** - Different seasons affect growth rates
+- **Quality System** - Proper care results in higher quality harvests
+- **Greenhouse Farming** - Purchase greenhouses for protected growing
+- **Irrigation Systems** - Install automated watering systems
 
 ## 📍 Default Plot Locations
 
@@ -243,16 +261,17 @@ Config.Emotes = {
 - **Grapeseed Outskirts** - Secluded field
   - Coordinates: (2463.77, 4843.56, 36.45)
 
+## 🎮 Player Commands
+
+### `/testminigame`
+Test the harvest minigame system (client-side testing).
+
 ## 🛠️ Admin Commands
 
-### `/farmingdebug`
-Toggle debug mode to see plant states and timers.
-
-### `/resetfarm <plot_id>`
-Reset a specific farming plot (admin only).
-
-### `/clearallfarms`
-Clear all farming plots (admin only).
+No admin commands are currently registered. Farm management is handled through:
+- Server events for plot management
+- Database persistence for plot states
+- Automatic cleanup systems
 
 ## 🔐 Permissions
 
@@ -343,11 +362,78 @@ local available = exports['bldr_farming']:IsPlotAvailable(farmId)
 
 ## 📊 Performance
 
-- Optimized update intervals
-- Batch processing for multiple plots
-- Efficient visual prop management
-- Cached core exports
-- Limited updates per cycle
+- Optimized update intervals (5 minutes for plant growth)
+- Batch processing for multiple plots (max 5 per cycle)
+- Efficient visual prop management with update queue
+- Cached core exports to reduce lookup overhead
+- Limited visual updates per cycle (3 max)
+- Water decay runs every 3 minutes
+- Visual updates every 5 seconds
+- Smart prop scaling and growth stage rendering
+
+## 🎯 Commands Reference
+
+### Player Commands
+
+| Command | Description | Permission |
+|---------|-------------|------------|
+| `/testminigame` | Test the harvest minigame | Everyone |
+
+### Server Events (For Developers)
+
+**Planting:**
+```lua
+TriggerServerEvent('bldr_farming:server:plantSeed', farmId, seedItem)
+```
+
+**Harvesting:**
+```lua
+TriggerServerEvent('bldr_farming:server:harvestPlot', farmId)
+```
+
+**Watering:**
+```lua
+TriggerServerEvent('bldr_farming:server:waterPlant', farmId)
+```
+
+**Fertilizing:**
+```lua
+TriggerServerEvent('bldr_farming:server:applyFertilizer', farmId, fertilizerType)
+```
+
+**Disease Treatment:**
+```lua
+TriggerServerEvent('bldr_farming:server:treatDisease', farmId, medicineType)
+```
+
+### Client Events
+
+**Update plant visual:**
+```lua
+TriggerClientEvent('bldr_farming:client:updatePlant', src, farmId, state, progress)
+```
+
+**Show notification:**
+```lua
+TriggerClientEvent('bldr_farming:client:notify', src, message, type)
+```
+
+### Exports
+
+**Show harvest minigame:**
+```lua
+exports['bldr_farming']:ShowHarvestMinigame(difficulty, type, callback)
+```
+
+**Get farm state:**
+```lua
+local farmState = exports['bldr_farming']:GetFarmState(farmId)
+```
+
+**Check plot availability:**
+```lua
+local available = exports['bldr_farming']:IsPlotAvailable(farmId)
+```
 
 ## 🔄 Integration with Other BLDR Scripts
 
